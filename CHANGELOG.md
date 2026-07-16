@@ -1,3 +1,10 @@
+## 0.0.2 - July 16, 2026
+#### Added:
+- Debug info enabled via define macro
+
+#### Changed:
+- Arenas and Pools now request siblings if they run out of memory, creating a linked list of allocators
+
 ## 0.0.1 - July 15, 2026
 #### Added:
 - Macros for KB, MB and GB
