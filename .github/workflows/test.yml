@@ -1,0 +1,183 @@
+name: allocator.h tests
+
+on:
+    push:
+        branches: [ main ]
+
+jobs:
+
+    test_allocator_linux:
+
+        name: Build and test Arena
+        runs-on: ubuntu-latest
+
+        # ====================
+        #  Core
+        # ====================
+
+        steps:
+
+          - name: Checkout code
+            uses: actions/checkout@v7
+
+          - name: Update OS and cd
+            run: |
+                sudo apt-get update
+                sudo apt-get install -y make
+                cd tests
+
+        # ====================
+        #  Arena
+        # ====================
+
+          - name: Run test Arena
+            run: |
+                make test TEST_DIR=allocator TEST_NAME=arena
+
+          - name: Clean Arena
+            run: |
+                make clean TEST_DIR=allocator TEST_NAME=arena
+
+        # ====================
+        #  Bump Allocator
+        # ====================
+
+          - name: Run test
+            run: |
+                make test TEST_DIR=allocator TEST_NAME=bump
+
+          - name: Clean
+            run: |
+                make clean TEST_DIR=allocator TEST_NAME=bump
+
+        # ====================
+        #  Pool
+        # ====================
+
+          - name: Run test
+            run: |
+                make test TEST_DIR=allocator TEST_NAME=pool
+
+          - name: Clean
+            run: |
+                make clean TEST_DIR=allocator TEST_NAME=pool
+
+    test_allocator_windows:
+
+        name: Build and test Arena
+        runs-on: windows-latest
+        defaults:
+            run:
+                shell: msys {0}
+
+        # ====================
+        #  Core
+        # ====================
+
+        steps:
+
+          - name: Checkout code
+            uses: actions/checkout@v7
+
+          - name: Setup MSYS2 and MinGW
+            uses: msys2/setup-msys2@v2
+            with:
+                msystem: UCRT64
+                update: true
+                install: >-
+                    mingw-w64-ucrt-x86_64-gcc
+                    mingw-w64-ucrt-x86_64-make
+
+          - run: |
+                cd tests
+
+        # ====================
+        #  Arena
+        # ====================
+
+          - name: Run test Arena
+            run: |
+                make test TEST_DIR=allocator TEST_NAME=arena
+
+          - name: Clean Arena
+            run: |
+                make clean TEST_DIR=allocator TEST_NAME=arena
+
+        # ====================
+        #  Bump Allocator
+        # ====================
+
+          - name: Run test
+            run: |
+                make test TEST_DIR=allocator TEST_NAME=bump
+
+          - name: Clean
+            run: |
+                make clean TEST_DIR=allocator TEST_NAME=bump
+
+        # ====================
+        #  Pool
+        # ====================
+
+          - name: Run test
+            run: |
+                make test TEST_DIR=allocator TEST_NAME=pool
+
+          - name: Clean
+            run: |
+                make clean TEST_DIR=allocator TEST_NAME=pool
+
+    test_allocator_macos:
+
+        name: Build and test Arena
+        runs-on: macos-latest
+
+        # ====================
+        #  Core
+        # ====================
+
+        steps:
+
+          - name: Checkout code
+            uses: actions/checkout@v7
+
+          - name: Get gcc and cd
+            run: |
+                brew install gcc
+                cd tests
+
+        # ====================
+        #  Arena
+        # ====================
+
+          - name: Run test Arena
+            run: |
+                make test TEST_DIR=allocator TEST_NAME=arena
+
+          - name: Clean Arena
+            run: |
+                make clean TEST_DIR=allocator TEST_NAME=arena
+
+        # ====================
+        #  Bump Allocator
+        # ====================
+
+          - name: Run test
+            run: |
+                make test TEST_DIR=allocator TEST_NAME=bump
+
+          - name: Clean
+            run: |
+                make clean TEST_DIR=allocator TEST_NAME=bump
+
+        # ====================
+        #  Pool
+        # ====================
+
+          - name: Run test
+            run: |
+                make test TEST_DIR=allocator TEST_NAME=pool
+
+          - name: Clean
+            run: |
+                make clean TEST_DIR=allocator TEST_NAME=pool
