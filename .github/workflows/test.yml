@@ -8,7 +8,7 @@ jobs:
 
     test_allocator_linux:
 
-        name: Build and test Arena
+        name: Build and test allocators [Linux]
         runs-on: ubuntu-latest
 
         # ====================
@@ -20,51 +20,116 @@ jobs:
           - name: Checkout code
             uses: actions/checkout@v7
 
-          - name: Update OS and cd
+          - name: Update OS
             run: |
                 sudo apt-get update
                 sudo apt-get install -y make
-                cd tests
 
         # ====================
         #  Arena
         # ====================
 
-          - name: Run test Arena
+          - name: Test Arena
+            working-directory: ./tests
             run: |
-                make test TEST_DIR=allocator TEST_NAME=arena
+                make test TARGET_DIR=allocator TARGET_NAME=arena
 
           - name: Clean Arena
+            working-directory: ./tests
             run: |
-                make clean TEST_DIR=allocator TEST_NAME=arena
+                make clean TARGET_DIR=allocator TARGET_NAME=arena
 
         # ====================
         #  Bump Allocator
         # ====================
 
-          - name: Run test
+          - name: Test Bump Allocator
+            working-directory: ./tests
             run: |
-                make test TEST_DIR=allocator TEST_NAME=bump
+                make test TARGET_DIR=allocator TARGET_NAME=bump
 
-          - name: Clean
+          - name: Clean Bump Allocator
+            working-directory: ./tests
             run: |
-                make clean TEST_DIR=allocator TEST_NAME=bump
+                make clean TARGET_DIR=allocator TARGET_NAME=bump
 
         # ====================
         #  Pool
         # ====================
 
-          - name: Run test
+          - name: Test Pool
+            working-directory: ./tests
             run: |
-                make test TEST_DIR=allocator TEST_NAME=pool
+                make test TARGET_DIR=allocator TARGET_NAME=pool
 
-          - name: Clean
+          - name: Clean Pool
+            working-directory: ./tests
             run: |
-                make clean TEST_DIR=allocator TEST_NAME=pool
+                make clean TARGET_DIR=allocator TARGET_NAME=pool
+
+    test_allocator_macos:
+
+        name: Build and test allocators [MacOs]
+        runs-on: macos-latest
+
+        # ====================
+        #  Core
+        # ====================
+
+        steps:
+
+          - name: Checkout code
+            uses: actions/checkout@v7
+
+          - name: Get gcc
+            run: |
+                brew install gcc
+
+        # ====================
+        #  Arena
+        # ====================
+
+          - name: Test Arena
+            working-directory: ./tests
+            run: |
+                make test TARGET_DIR=allocator TARGET_NAME=arena
+
+          - name: Clean Arena
+            working-directory: ./tests
+            run: |
+                make clean TARGET_DIR=allocator TARGET_NAME=arena
+
+        # ====================
+        #  Bump Allocator
+        # ====================
+
+          - name: Test Bump Allocator
+            working-directory: ./tests
+            run: |
+                make test TARGET_DIR=allocator TARGET_NAME=bump
+
+          - name: Clean Bump Allocator
+            working-directory: ./tests
+            run: |
+                make clean TARGET_DIR=allocator TARGET_NAME=bump
+
+        # ====================
+        #  Pool
+        # ====================
+
+          - name: Test Pool
+            working-directory: ./tests
+            run: |
+                make test TARGET_DIR=allocator TARGET_NAME=pool
+
+          - name: Clean Pool
+            working-directory: ./tests
+            run: |
+                make clean TARGET_DIR=allocator TARGET_NAME=pool
 
     test_allocator_windows:
 
-        name: Build and test Arena
+        name: Build and test allocators [Windows]
         runs-on: windows-latest
         defaults:
             run:
@@ -88,96 +153,44 @@ jobs:
                     mingw-w64-ucrt-x86_64-gcc
                     mingw-w64-ucrt-x86_64-make
 
-          - run: |
-                cd tests
-
         # ====================
         #  Arena
         # ====================
 
-          - name: Run test Arena
+          - name: Test Arena
+            working-directory: ./tests
             run: |
-                make test TEST_DIR=allocator TEST_NAME=arena
+                make test TARGET_DIR=allocator TARGET_NAME=arena
 
           - name: Clean Arena
+            working-directory: ./tests
             run: |
-                make clean TEST_DIR=allocator TEST_NAME=arena
+                make clean TARGET_DIR=allocator TARGET_NAME=arena
 
         # ====================
         #  Bump Allocator
         # ====================
 
-          - name: Run test
+          - name: Test Bump Allocator
+            working-directory: ./tests
             run: |
-                make test TEST_DIR=allocator TEST_NAME=bump
+                make test TARGET_DIR=allocator TARGET_NAME=bump
 
-          - name: Clean
+          - name: Clean Bump Allocator
+            working-directory: ./tests
             run: |
-                make clean TEST_DIR=allocator TEST_NAME=bump
+                make clean TARGET_DIR=allocator TARGET_NAME=bump
 
         # ====================
         #  Pool
         # ====================
 
-          - name: Run test
+          - name: Test Pool
+            working-directory: ./tests
             run: |
-                make test TEST_DIR=allocator TEST_NAME=pool
+                make test TARGET_DIR=allocator TARGET_NAME=pool
 
-          - name: Clean
+          - name: Clean Pool
+            working-directory: ./tests
             run: |
-                make clean TEST_DIR=allocator TEST_NAME=pool
-
-    test_allocator_macos:
-
-        name: Build and test Arena
-        runs-on: macos-latest
-
-        # ====================
-        #  Core
-        # ====================
-
-        steps:
-
-          - name: Checkout code
-            uses: actions/checkout@v7
-
-          - name: Get gcc and cd
-            run: |
-                brew install gcc
-                cd tests
-
-        # ====================
-        #  Arena
-        # ====================
-
-          - name: Run test Arena
-            run: |
-                make test TEST_DIR=allocator TEST_NAME=arena
-
-          - name: Clean Arena
-            run: |
-                make clean TEST_DIR=allocator TEST_NAME=arena
-
-        # ====================
-        #  Bump Allocator
-        # ====================
-
-          - name: Run test
-            run: |
-                make test TEST_DIR=allocator TEST_NAME=bump
-
-          - name: Clean
-            run: |
-                make clean TEST_DIR=allocator TEST_NAME=bump
-
-        # ====================
-        #  Pool
-        # ====================
-
-          - name: Run test
-            run: |
-                make test TEST_DIR=allocator TEST_NAME=pool
-
-          - name: Clean
-            run: |
-                make clean TEST_DIR=allocator TEST_NAME=pool
+                make clean TARGET_DIR=allocator TARGET_NAME=pool

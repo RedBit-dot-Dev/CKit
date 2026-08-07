@@ -22,8 +22,23 @@
 #define PTR_INDEX_FWD(ptr, index) ( (void*) ( ((uintptr_t) ptr) + index ) )
 #define PTR_INDEX_BWD(ptr, index) ( (void*) ( ((uintptr_t) ptr) - index ) )
 
+#ifndef CKIT_DEBUG_MSG
+    #define CKIT_DEBUG_MSG_0(msg) fprintf(stdout, "\033[35m[DEBUG] " msg "\n");
+    #define CKIT_DEBUG_MSG_1(msg, arg_1) fprintf(stdout, "\033[35m[DEBUG] " msg "\n", arg_1);
+    #define CKIT_DEBUG_MSG_2(msg, arg_1, arg_2) fprintf(stdout, "\033[35m[DEBUG] " msg "\n", arg_1, arg_2);
+    #define CKIT_DEBUG_MSG_3(msg, arg_1, arg_2, arg_3) fprintf(stdout, "\033[35m[DEBUG] " msg "\n", arg_1, arg_2, arg_3);
+#endif
+
+#ifndef CKIT_RAISE_ERROR
+    #define CKIT_RAISE_ERROR_0(msg) fprintf(stderr, "\033[33m[ERROR] " msg "\n"); exit(1);
+    #define CKIT_RAISE_ERROR_1(msg, arg_1) fprintf(stderr, "\033[33m[ERROR] " msg "\n", arg_1); exit(1);
+    #define CKIT_RAISE_ERROR_2(msg, arg_1, arg_2) fprintf(stderr, "\033[33m[ERROR] " msg "\n", arg_1, arg_2); exit(1);
+    #define CKIT_RAISE_ERROR_3(msg, arg_1, arg_2, arg_3) fprintf(stderr, "\033[33m[ERROR] " msg "\n", arg_1, arg_2, arg_3); exit(1);
+#endif
+
 #define DEFAULT_ALIGN sizeof(uint8_t*)
 #define MIN_ITEMS_PER_PAGE_POOL 8
+#define NO_HEADER 0
 
 
 
@@ -154,27 +169,69 @@ Arena* arena_new() {
         -1,
         0
     );
-    if (!a) return NULL;
+    if (!a) {
+
+        #ifdef CKIT_RAISE
+            CKIT_RAISE_ERROR_0("Couldn't map Arena")
+        #endif
+
+        return NULL;
+    }
 
     a->total_size = page_size;
     a->total_used = sizeof(Arena);
     a->page_size = page_size;
 
     void* unaligned_ptr = PTR_INDEX_FWD(a, a->total_used);
-    __Page_Header* ph = align_ptr_forward(unaligned_ptr , DEFAULT_ALIGN);
-    a->last_header = a->first_header = ph;
-    a->total_used += sizeof(__Page_Header);
+    size_t padding = calc_padding_with_header(unaligned_ptr, DEFAULT_ALIGN, NO_HEADER);
+    __Page_Header* ph = PTR_INDEX_FWD(unaligned_ptr, padding); //align_ptr_forward(unaligned_ptr , DEFAULT_ALIGN);
+
+    a->first_header = a->last_header = ph;
+    a->total_used += padding + sizeof(__Page_Header);
 
     ph->next = NULL;
     ph->size = a->total_size;
-    ph->used = sizeof(__Page_Header);
+    ph->used = sizeof(Arena) + padding + sizeof(__Page_Header);
 
     return a;
 }
 
+__Page_Header* __arena_append_new_page(Arena* a, size_t alloc_size) {
+
+    // TODO: Check if it's ok around overflow values
+    unsigned int num_pages = (alloc_size + sizeof(__Page_Header) + (a->page_size - 1) ) / a->page_size;
+
+    // Second argument is integer division rounded up
+    __Page_Header* ph = page_header_new(a->last_header, num_pages, a->page_size);
+    if (!ph) return NULL;
+
+    #ifdef CKIT_DEBUG
+        CKIT_DEBUG_MSG_3("Arena located at %p had no memory for allocation of %zu bytes and requested %u memory page(s)",
+            (void*) a,
+            alloc_size,
+            num_pages
+        )
+    #endif
+
+    a->total_size += ph->size;
+    a->total_used += ph->used;
+
+    a->last_header->next = ph;
+    a->last_header = ph;
+
+    return ph;
+}
+
 void* arena_alloc(Arena* a, size_t alloc_size) {
 
-    if (!a || alloc_size < 1) return NULL;
+    if (!a || alloc_size < 1) {
+
+        #ifdef CKIT_RAISE
+            CKIT_RAISE_ERROR_0("No arena was passed or alloc size was less than 1 byte at arena_alloc")
+        #endif
+
+        return NULL;
+    }
 
     void* unaligned_ptr;
     size_t padding;
@@ -184,9 +241,9 @@ void* arena_alloc(Arena* a, size_t alloc_size) {
     while (ph) {
 
         unaligned_ptr = PTR_INDEX_FWD(ph, ph->used);
-        padding = calc_padding_with_header(unaligned_ptr, DEFAULT_ALIGN, 0);
+        padding = calc_padding_with_header(unaligned_ptr, DEFAULT_ALIGN, NO_HEADER);
 
-        if (ph->used + padding + alloc_size < ph->size) {
+        if (ph->used + padding + alloc_size <= ph->size) {
 
             ptr = PTR_INDEX_FWD(unaligned_ptr, padding);
 
@@ -199,17 +256,18 @@ void* arena_alloc(Arena* a, size_t alloc_size) {
         ph = ph->next;
     }
 
-    // Second argument is integer division rounded up
-    // TODO: Check if it's ok around overflow values
-    unsigned int num_pages = (alloc_size + (a->page_size - 1) ) / a->page_size;
-    ph = page_header_new(a->last_header, num_pages, a->page_size);
-    if (!ph) return NULL;
+    ph = __arena_append_new_page(a, alloc_size);
+    if (!ph) {
 
-    a->last_header->next = ph;
-    a->last_header = ph;
+        #ifdef CKIT_RAISE
+            CKIT_RAISE_ERROR_1("Arena located at %p could not get more memory pages for allocation", (void*) a)
+        #endif
+
+        return NULL;
+    }
 
     unaligned_ptr = PTR_INDEX_FWD(ph, ph->used);
-    padding = calc_padding_with_header(unaligned_ptr, DEFAULT_ALIGN, 0);
+    padding = calc_padding_with_header(unaligned_ptr, DEFAULT_ALIGN, NO_HEADER);
 
     ptr = PTR_INDEX_FWD(unaligned_ptr, padding);
 
@@ -221,15 +279,39 @@ void* arena_alloc(Arena* a, size_t alloc_size) {
 
 bool arena_free(Arena* a) {
 
-    if (!a) return false;
+    if (!a) {
+
+        #ifdef CKIT_RAISE
+            CKIT_RAISE_ERROR_0("No arena was passed at arena_free")
+        #endif
+
+        return false;
+    }
+
+    #ifdef CKIT_DEBUG
+        unsigned int CKIT_DEBUG_ARENA_PAGE_HEADER_COUNT = 0;
+    #endif
 
     while (a->first_header->next) {
+
+        #ifdef CKIT_DEBUG
+            CKIT_DEBUG_ARENA_PAGE_HEADER_COUNT++;
+        #endif
 
         __Page_Header* ph = a->first_header->next;
         a->first_header->next = ph->next;
         munmap(ph, ph->size);
 
     }
+
+    #ifdef CKIT_DEBUG
+        CKIT_DEBUG_ARENA_PAGE_HEADER_COUNT++;
+        CKIT_DEBUG_MSG_3("Arena located at %p was free'd with %u page headers and %zu bytes used in total",
+            (void*) a,
+            CKIT_DEBUG_ARENA_PAGE_HEADER_COUNT,
+            a->total_used
+        )
+    #endif
 
     munmap(a, a->first_header->size);
 

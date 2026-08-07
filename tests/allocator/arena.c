@@ -2,6 +2,8 @@
 #include "allocator.h"
 
 int main() {
-    printf("Hello World\n");
+    Arena a;
+    a.page_size = 0;
+    printf("Hello World %zu\n", a.page_size);
     return 0;
 }

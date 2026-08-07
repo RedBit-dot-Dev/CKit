@@ -1,3 +1,18 @@
+## v0.0.6 - August 6, 2026
+#### Added:
+- In allocator.h:
+    - Reintroduced debug info (only for arena at the moment) enabled by defining `CKIT_DEBUG` before including allocator.h
+    - Error raising/panic crashing program on errors (also only for arena) enabled by defining `CKIT_RAISE` before including allocator.h
+    - `CKIT_DEBUG_MSG_0-3` macros for debug messaging
+    - `CKIT_RAISE_ERROR_0-3` macros for error messaging
+    - `NO_HEADER` macro for better code readability
+    - `__arena_apend_new_page()`
+
+#### Changed:
+- Renamed jobs in test.yml
+- Fixed logic bug with arena_alloc not doing the alloc_size math right
+- Fixed unit testing (?)
+
 ## v0.0.5 - August 6, 2026
 #### Added:
 - Github Actions tests structure

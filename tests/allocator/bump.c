@@ -2,6 +2,8 @@
 #include "allocator.h"
 
 int main() {
-    printf("Hello World\n");
+    Bump_Allocator b;
+    b.page_size = 0;
+    printf("Hello World %zu\n", b.page_size);
     return 0;
 }
