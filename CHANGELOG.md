@@ -1,3 +1,24 @@
+## v0.0.7 - August 9, 2026
+#### Added:
+- In allocator.h
+    - `CKIT_OK` and `CKIT_FAIL` macros for better signaling of function success/fail
+    - Debug and Error messages for `Bump_Allocator`
+    - `get_padding_size()` helper funcion
+    - `CLEAN_DATA` macro for better code readability
+    - `__bump_append_new_page()`
+
+#### Changed:
+- In allocator.h
+    - Fixed bug in which debug and error messages would cause the terminal to be colored for every print afterwards
+    - Fixed bug with alignment on Bump_Allocator and now it requires less bytes per alloc
+    - Changed `CKIT_RAISE_ERROR` message color to red
+
+#### Removed:
+- In allocator.h
+    - `__Alloc_Header_Bump` "class". Bump_Allocator now doesn't need allocation headers
+    - `calc_padding_with_header()` helper function. Replaced with `get_padding_size()`
+    - `NO_HEADER` macro
+
 ## v0.0.6 - August 6, 2026
 #### Added:
 - In allocator.h:
@@ -55,8 +76,8 @@
 
 #### Removed:
 - In allocator.h
-    - Almost all comments in allocator.h (for now)
-    - Debug info in allocator.h (for now)
+    - Almost all comments (for now)
+    - Debug info (for now)
     - `byte` macro
 
 ## v0.0.3 - July 18, 2026

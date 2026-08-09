@@ -8,8 +8,16 @@ ifeq ($(OS),Windows_NT)
 	FixExt = $(addsuffix .exe,$1)
 #	FixRun = $1
 else
+
     # Unix settings
-	CFLAGS = -std=c99 -Wpedantic -Wall -Wextra -Werror=cast-align=strict -Wlogical-op -Wunreachable-code -fsanitize=address,alignment,undefined -g -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -fanalyzer -O0
+
+	UNAME_S = $(shell uname -s)
+	ifeq ($(UNAME_S), Darwin)
+		CFLAGS = -std=c99 -Wpedantic -Wall -Wextra -Werror=cast-align=strict -Wlogical-op -Wunreachable-code -fsanitize=address,alignment,undefined -g -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -O0
+	else
+		CFLAGS = -std=c99 -Wpedantic -Wall -Wextra -Werror=cast-align=strict -Wlogical-op -Wunreachable-code -fsanitize=address,alignment,undefined -g -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -fanalyzer -O0
+	endif
+
     RM = rm
 #    FixPath = $1
 	FixExt = $1
