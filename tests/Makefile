@@ -13,7 +13,7 @@ else
 
 	UNAME_S = $(shell uname -s)
 	ifeq ($(UNAME_S), Darwin)
-		CFLAGS = -std=c99 -Wpedantic -Wall -Wextra -Werror=cast-align=strict -Wlogical-op -Wunreachable-code -fsanitize=address,alignment,undefined -g -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -O0
+		CFLAGS = -std=c99 -Wpedantic -Wall -Wextra -Werror=cast-align -Wunreachable-code -fsanitize=address,alignment,undefined -g -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -O0
 	else
 		CFLAGS = -std=c99 -Wpedantic -Wall -Wextra -Werror=cast-align=strict -Wlogical-op -Wunreachable-code -fsanitize=address,alignment,undefined -g -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -fanalyzer -O0
 	endif

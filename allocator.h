@@ -133,6 +133,10 @@ __Page_Header* page_header_new(void* hint_ptr, unsigned int num_pages, size_t pa
     return ph;
 }
 
+size_t division_unsigned_ceil(size_t numerator, size_t denominator) {
+    return ( numerator + (denominator - 1) ) / denominator;
+}
+
 
 
 // ====================
@@ -146,6 +150,43 @@ typedef struct _arena {
     size_t total_used;
     size_t page_size;
 } Arena;
+
+__Page_Header* __arena_append_new_page(Arena* a, size_t alloc_size) {
+
+    // TODO: Check if it's ok around overflow values
+    unsigned int num_pages = (alloc_size + sizeof(__Page_Header) + (a->page_size - 1) ) / a->page_size;
+
+    // Second argument is integer division rounded up
+    __Page_Header* ph = page_header_new(a->last_header, num_pages, a->page_size);
+    if (!ph) {
+
+        #ifdef CKIT_RAISE
+            CKIT_RAISE_ERROR_1(
+                "Arena located at %p could not get more memory pages for allocation",
+                (void*) a
+            )
+        #endif
+
+        return NULL;
+    }
+
+    a->total_size += ph->size;
+    a->total_used += ph->used;
+
+    a->last_header->next = ph;
+    a->last_header = ph;
+
+    #ifdef CKIT_DEBUG
+        CKIT_DEBUG_MSG_3(
+            "Arena located at %p had no memory for allocation of %zu bytes and requested %u memory page(s)",
+            (void*) a,
+            alloc_size,
+            num_pages
+        )
+    #endif
+
+    return ph;
+}
 
 Arena* arena_new() {
 
@@ -184,43 +225,6 @@ Arena* arena_new() {
     ph->used = sizeof(Arena) + padding + sizeof(__Page_Header);
 
     return a;
-}
-
-__Page_Header* __arena_append_new_page(Arena* a, size_t alloc_size) {
-
-    // TODO: Check if it's ok around overflow values
-    unsigned int num_pages = (alloc_size + sizeof(__Page_Header) + (a->page_size - 1) ) / a->page_size;
-
-    // Second argument is integer division rounded up
-    __Page_Header* ph = page_header_new(a->last_header, num_pages, a->page_size);
-    if (!ph) {
-
-        #ifdef CKIT_RAISE
-            CKIT_RAISE_ERROR_1(
-                "Arena located at %p could not get more memory pages for allocation",
-                (void*) a
-            )
-        #endif
-
-        return NULL;
-    }
-
-    a->total_size += ph->size;
-    a->total_used += ph->used;
-
-    a->last_header->next = ph;
-    a->last_header = ph;
-
-    #ifdef CKIT_DEBUG
-        CKIT_DEBUG_MSG_3(
-            "Arena located at %p had no memory for allocation of %zu bytes and requested %u memory page(s)",
-            (void*) a,
-            alloc_size,
-            num_pages
-        )
-    #endif
-
-    return ph;
 }
 
 // TODO: Make this better
@@ -328,6 +332,43 @@ typedef struct _bump_allocator {
     size_t page_size;
 } Bump_Allocator;
 
+bool __bump_append_new_page(Bump_Allocator* b, size_t alloc_size) {
+
+    // TODO: Check if it's ok around overflow values
+    unsigned int num_pages = (alloc_size + (b->page_size - 1) ) / b->page_size;
+
+    // Second argument is integer division rounded up
+    __Page_Header* ph = page_header_new(b->last_header, num_pages, b->page_size);
+    if (!ph) {
+
+        #ifdef CKIT_RAISE
+            CKIT_RAISE_ERROR_1(
+                "Bump_Allocator located at %p could not get more memory pages for allocation",
+                (void*) b
+            )
+        #endif
+
+        return CKIT_FAIL;
+    }
+
+    b->total_size += ph->size;
+    b->total_used += ph->used;
+
+    ph->next = b->last_header;
+    b->last_header = ph;
+
+    #ifdef CKIT_DEBUG
+        CKIT_DEBUG_MSG_3(
+            "Bump_Allocator located at %p had no memory for allocation of %zu bytes and requested %u memory page(s)",
+            (void*) b,
+            alloc_size,
+            num_pages
+        )
+    #endif
+
+    return CKIT_OK;
+}
+
 Bump_Allocator* bump_allocator_new() {
 
     size_t page_size = sysconf(_SC_PAGESIZE);
@@ -365,43 +406,6 @@ Bump_Allocator* bump_allocator_new() {
     ph->used = b->total_used;
 
     return b;
-}
-
-bool __bump_append_new_page(Bump_Allocator* b, size_t alloc_size) {
-
-    // TODO: Check if it's ok around overflow values
-    unsigned int num_pages = (alloc_size + (b->page_size - 1) ) / b->page_size;
-
-    // Second argument is integer division rounded up
-    __Page_Header* ph = page_header_new(b->last_header, num_pages, b->page_size);
-    if (!ph) {
-
-        #ifdef CKIT_RAISE
-            CKIT_RAISE_ERROR_1(
-                "Bump_Allocator located at %p could not get more memory pages for allocation",
-                (void*) b
-            )
-        #endif
-
-        return CKIT_FAIL;
-    }
-
-    b->total_size += ph->size;
-    b->total_used += ph->used;
-
-    ph->next = b->last_header;
-    b->last_header = ph;
-
-    #ifdef CKIT_DEBUG
-        CKIT_DEBUG_MSG_3(
-            "Bump_Allocator located at %p had no memory for allocation of %zu bytes and requested %u memory page(s)",
-            (void*) b,
-            alloc_size,
-            num_pages
-        )
-    #endif
-
-    return CKIT_OK;
 }
 
 void* bump_alloc(Bump_Allocator* b, size_t alloc_size) {
@@ -539,76 +543,103 @@ typedef struct __free_list_pool_node {
 } __Free_List_Pool_Node;
 
 typedef struct _pool {
+    __Free_List_Pool_Node* free_list_start;
+    __Free_List_Pool_Node* free_list_end;
     __Micro_Page_Header* first_header;
     __Micro_Page_Header* last_header;
-    __Free_List_Pool_Node* free_list;
-    unsigned int current_num_items;
+    size_t original_item_size;
     size_t item_size_aligned;
+    size_t current_num_items;
     size_t map_size;
 } Pool;
 
-Pool* pool_new(size_t item_size) {
-
-    if (item_size < sizeof(__Free_List_Pool_Node)) {
-        item_size = sizeof(__Free_List_Pool_Node);
-    }
+void __get_aligned_item_and_map_size(size_t item_size, size_t* actual_item_size, size_t* map_size) {
 
     size_t page_size = sysconf(_SC_PAGESIZE);
 
     size_t padding = get_padding_size((void*) item_size, DEFAULT_ALIGN);
-    size_t actual_item_size = item_size + padding;
-    size_t min_num_item_size = actual_item_size * MIN_ITEMS_PER_PAGE_POOL;
-    unsigned int num_pages = (min_num_item_size + sizeof(__Micro_Page_Header) + (page_size - 1) ) / page_size;
-    size_t map_size = num_pages * page_size;
+    (*actual_item_size) = item_size + padding;
 
-    Pool* p = mmap(
-        NULL,
-        map_size,
-        PROT_READ | PROT_WRITE,
-        MAP_ANONYMOUS | MAP_PRIVATE,
-        -1,
-        0
-    );
-    if (!p) return NULL;
+    size_t min_size = (*actual_item_size) * MIN_ITEMS_PER_PAGE_POOL;//(min_size + sizeof(__Micro_Page_Header) + (page_size - 1) ) / page_size;
+    size_t num_pages = division_unsigned_ceil(min_size + sizeof(__Micro_Page_Header), page_size);
+    (*map_size) = num_pages * page_size;
 
-    p->item_size_aligned = actual_item_size;
-    p->current_num_items = 0;
-    p->map_size = map_size;
+    return;
+}
 
-    void* unaligned_ptr = PTR_INDEX_FWD(p, sizeof(Pool));
-    __Micro_Page_Header* mph = align_ptr_forward(unaligned_ptr, DEFAULT_ALIGN);
-    mph->next = NULL;
+void __pre_section_first_header(Pool* p, void** beginning, void** end) {
+
+    size_t used = 0;
+    void* unaligned_ptr;
+    size_t padding;
+    __Micro_Page_Header* mph;
+
+    used += sizeof(Pool);
+    unaligned_ptr = PTR_INDEX_FWD(p, used);
+
+    padding = get_padding_size(unaligned_ptr, DEFAULT_ALIGN);
+    mph = PTR_INDEX_FWD(unaligned_ptr, padding);
+
+    used += padding + sizeof(__Micro_Page_Header);
+
+    // End of mph
+    unaligned_ptr = PTR_INDEX_FWD(p, used);
+    // Padding between mph and first item (the only one that may have a different size of padding)
+    padding = get_padding_size(unaligned_ptr, DEFAULT_ALIGN);
+
+    (*beginning) = PTR_INDEX_FWD(unaligned_ptr, padding + p->original_item_size); // End of first_item
+    (*end) = PTR_INDEX_FWD(p, p->map_size); // End of map
+
     p->first_header = p->last_header = mph;
+    mph->next = NULL;
 
-    unsigned int num_items_to_skip = sizeof(Pool) + sizeof(mph) + (actual_item_size - 1) / actual_item_size;
-    unsigned int num_available_items = ( ( map_size - sizeof(__Micro_Page_Header) ) / actual_item_size ) - num_items_to_skip;
+    // Adding first item to the list
+    __Free_List_Pool_Node* first_item = PTR_INDEX_BWD( (*beginning) , p->original_item_size);
+    p->free_list_start = p->free_list_end = first_item;
+    p->current_num_items++;
 
-    void* end_of_map = PTR_INDEX_FWD(p, p->map_size);
+    return;
+}
+
+void __pre_section_default(Pool* p, void** beginning, void** end) {
+
+    __Micro_Page_Header* mph = p->last_header;
+
+    // Since mph is always gonna be a multiple of DEFAULT_ALIGN, there is no padding between it and the first item
+    (*beginning) = PTR_INDEX_FWD(mph, sizeof(__Micro_Page_Header) + p->original_item_size);
+    (*end) = PTR_INDEX_FWD(mph, p->map_size);
+
+    __Free_List_Pool_Node* first_item = PTR_INDEX_BWD( (*beginning) , p->original_item_size);
+
+    // Adding first item of this page to the list
+    if (p->free_list_end) {
+        p->free_list_end->next = first_item;
+        p->free_list_end = p->free_list_end->next;
+    }
+
+    else p->free_list_end = first_item;
+    p->current_num_items++;
+
+    return;
+}
+
+void __section_free_space(Pool* p, void* beginning_of_free_space, void* end_of_free_space) {
+
+    size_t free_space = ptr_diff(end_of_free_space, beginning_of_free_space);
+    size_t items_in_free_space = division_unsigned_ceil(free_space, p->item_size_aligned);
 
     __Free_List_Pool_Node* temp;
-    for (unsigned int i = 1; i < num_available_items + 1; i++) {
-        temp = PTR_INDEX_BWD(end_of_map, i * actual_item_size);
-        temp->next = p->free_list;
-        p->free_list = temp;
+    for (unsigned int i = 0; i < items_in_free_space; i++) {
+        temp = PTR_INDEX_FWD(beginning_of_free_space, i * p->item_size_aligned);
+        p->free_list_end->next = temp;
+        p->free_list_end = p->free_list_end->next;
         p->current_num_items++;
     }
 
-    return p;
+    return;
 }
 
-void* pool_alloc(Pool* p) {
-
-    if (!p) return NULL;
-
-    if (p->free_list) {
-
-        __Free_List_Pool_Node* ptr = p->free_list;
-        p->free_list = p->free_list->next;
-
-        memset(ptr, CLEAN_DATA, sizeof(__Free_List_Pool_Node));
-
-        return ptr;
-    }
+bool __pool_append_new_page(Pool* p) {
 
     __Micro_Page_Header* mph = mmap(
         p->last_header,
@@ -618,35 +649,108 @@ void* pool_alloc(Pool* p) {
         -1,
         0
     );
-    if (!mph) return NULL;
+    if (!mph) {
+
+        #ifdef CKIT_RAISE
+            CKIT_RAISE_ERROR_1(
+                "Pool located at %p could not get more memory pages for allocation",
+                (void*) p
+            )
+        #endif
+
+        return CKIT_FAIL;
+    }
 
     p->last_header->next = mph;
     p->last_header = mph;
 
-    unsigned int num_available_items = ( ( p->map_size - sizeof(__Micro_Page_Header) ) / p->item_size_aligned );
-    void* end_of_map = mph == p->first_header ?
-                       PTR_INDEX_FWD(mph, p->map_size - sizeof(mph) - sizeof(Pool)) :
-                       PTR_INDEX_FWD(mph, p->map_size - sizeof(mph));
+    void* beginning_of_free_space;
+    void* end_of_free_space;
+    __pre_section_default(p, &beginning_of_free_space, &end_of_free_space);
 
-    __Free_List_Pool_Node* temp;
-    for (size_t i = 1; i < num_available_items + 1; i++) {
-        temp = PTR_INDEX_BWD(end_of_map, i * p->item_size_aligned);
-        temp->next = p->free_list;
-        p->free_list = temp;
-        p->current_num_items++;
+    __section_free_space(p, beginning_of_free_space, end_of_free_space);
+
+    #ifdef CKIT_DEBUG
+        CKIT_DEBUG_MSG_2(
+            "Bump_Allocator located at %p had no more items free and requested %zu memory page(s)",
+            (void*) p,
+            p->map_size / sysconf(_SC_PAGESIZE)
+        )
+    #endif
+
+    return CKIT_OK;
+}
+
+Pool* pool_new(size_t item_size) {
+
+    if (item_size < sizeof(__Free_List_Pool_Node)) {
+        item_size = sizeof(__Free_List_Pool_Node);
     }
 
-    __Free_List_Pool_Node* ptr = p->free_list;
-    p->free_list = p->free_list->next;
+    size_t actual_item_size;
+    size_t map_size;
+    __get_aligned_item_and_map_size(item_size, &actual_item_size, &map_size);
 
-    memset(ptr, CLEAN_DATA, sizeof(__Free_List_Pool_Node));
+    Pool* p = mmap(
+        NULL,
+        map_size,
+        PROT_READ | PROT_WRITE,
+        MAP_ANONYMOUS | MAP_PRIVATE,
+        -1,
+        0
+    );
+    if (!p) {
 
-    return ptr;
+        #ifdef CKIT_RAISE
+            CKIT_RAISE_ERROR_0("Couldn't map Pool")
+        #endif
+
+        return NULL;
+    }
+
+    p->item_size_aligned = actual_item_size;
+    p->current_num_items = 0;
+    p->map_size = map_size;
+    p->original_item_size = item_size;
+
+    void* beginning_of_free_space;
+    void* end_of_free_space;
+    __pre_section_first_header(p, &beginning_of_free_space, &end_of_free_space);
+
+    __section_free_space(p, beginning_of_free_space, end_of_free_space);
+
+    return p;
+}
+
+void* pool_alloc(Pool* p) {
+
+    if (!p) return NULL;
+
+    if (p->free_list_start) {
+
+        __Free_List_Pool_Node* ptr = p->free_list_start;
+        p->free_list_start = p->free_list_start->next;
+
+        memset(ptr, CLEAN_DATA, sizeof(__Free_List_Pool_Node));
+
+        return ptr;
+    }
+
+    if (__pool_append_new_page(p) == CKIT_FAIL) return NULL;
+
+    return pool_alloc(p);
 }
 
 bool pool_dealloc(Pool* p, void* ptr) {
 
-    if (!p || !ptr) return CKIT_FAIL;
+    if (!p || !ptr) {
+
+        #ifdef CKIT_RAISE
+            CKIT_RAISE_ERROR_0("No Pool or ptr was passed at pool_dealloc")
+        #endif
+
+        return CKIT_FAIL;
+    }
 
     __Micro_Page_Header* mph = p->first_header;
     while (mph) {
@@ -657,13 +761,14 @@ bool pool_dealloc(Pool* p, void* ptr) {
 
         void* lower_bound = PTR_INDEX_FWD(mph, sizeof(__Micro_Page_Header));
         void* upper_bound = PTR_INDEX_BWD(end_of_map, p->item_size_aligned);
+
         if (ptr >= lower_bound && ptr <= upper_bound) {
 
             memset(ptr, CLEAN_DATA, p->item_size_aligned);
 
             __Free_List_Pool_Node* list_node = ptr;
-            list_node->next = p->free_list;
-            p->free_list = list_node;
+            list_node->next = p->free_list_start;
+            p->free_list_start = list_node;
 
             return CKIT_OK;
         }
@@ -671,16 +776,38 @@ bool pool_dealloc(Pool* p, void* ptr) {
         mph = mph->next;
     }
 
+    #ifdef CKIT_RAISE
+        CKIT_RAISE_ERROR_2("ptr %p passed to pool_dealloc is not part of the memory allocated by Pool %p",
+            ptr,
+            (void*) p
+        )
+    #endif
+
     // ptr out of scope
     return CKIT_FAIL;
 }
 
 bool pool_free(Pool* p) {
 
-    if (!p) return CKIT_FAIL;
+    if (!p) {
+
+        #ifdef CKIT_RAISE
+            CKIT_RAISE_ERROR_0("No Pool was passed pool_free")
+        #endif
+
+        return CKIT_FAIL;
+    }
+
+    #ifdef CKIT_DEBUG
+        unsigned int CKIT_DEBUG_POOL_PAGE_HEADER_COUNT = 0;
+    #endif
 
     __Micro_Page_Header* mph = p->first_header;
     while (mph->next) {
+
+        #ifdef CKIT_DEBUG
+            CKIT_DEBUG_POOL_PAGE_HEADER_COUNT++;
+        #endif
 
         __Micro_Page_Header* to_unmap = mph->next;
         mph->next = to_unmap->next;
@@ -688,6 +815,15 @@ bool pool_free(Pool* p) {
         munmap(to_unmap, p->map_size);
 
     }
+
+    #ifdef CKIT_DEBUG
+        CKIT_DEBUG_POOL_PAGE_HEADER_COUNT++;
+        CKIT_DEBUG_MSG_3("Pool located at %p was free'd with %u page headers and %zu items mapped in total",
+            (void*) p,
+            CKIT_DEBUG_POOL_PAGE_HEADER_COUNT,
+            p->current_num_items
+        )
+    #endif
 
     munmap(p, p->map_size);
 

@@ -151,6 +151,7 @@ jobs:
                 update: true
                 install: >-
                   mingw-w64-x86_64-toolchain
+                  make
 #                  mingw-w64-ucrt-x86_64-gcc
 #                  mingw-w64-ucrt-x86_64-make
 

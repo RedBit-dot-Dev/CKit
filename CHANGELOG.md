@@ -1,3 +1,19 @@
+## v0.0.8 - August 17, 2026
+#### Added:
+- In allocator.h:
+    - Debug and Error messages for `Pool`
+    - `division_unsigned_ceil()` helper function
+    - `__get_aligned_item_and_map_size()`
+    - `__pre_section_first_header()`
+    - `__section_free_space()`
+    - `__pre_section_default()`
+    - `__pool_append_new_page()`
+
+#### Changed:
+- In allocator.h:
+    - Modularized and optimized `Pool` a lot
+    - `Pool` struct is now a little bigger (64 bytes in 64-bit architecture)
+
 ## v0.0.7 - August 9, 2026
 #### Added:
 - In allocator.h
